@@ -1,95 +1,96 @@
-import bisect
-import itertools
-import operator
 import sys
 
 class _BNode(object):
 
-    def __init__(self, bptree, elements=None, descendants=None):
+    def __init__(self, bptree, keys=None, descendants=None):
         self.bptree = bptree
-        self.elements = elements or []
-        self.descendants = descendants or []
-
-######################################################################################################
-
-    def lateral(self, parent, parent_index, dest, dest_index):
-        if parent_index > dest_index:
-            dest.elements.append(parent.elements[dest_index])
-            parent.elements[dest_index] = self.elements[0]
-            del self.elements[0]
-            if self.descendants:
-                dest.descendants.append(self.descendants[0])
-                del self.descendants[0]
+        if keys:
+            self.keys = keys
         else:
-            dest.elements.insert(0, parent.elements[parent_index])
-            parent.elements[parent_index] = self.elements[-1]
-            del self.elements[-1]
-            if self.descendants:
-                dest.descendants.insert(0, self.descendants[-1])
-                del self.descendants[-1]
-
-############################################################################################
-
-    # def split_node(self):
-    #     center = int(len(self.elements)/2)#// 2
-    #     medn = self.elements[center]
-    #     sibl = type(self)(self.bptree,self.elements[center + 1:],self.descendants[center + 1:])
-    #     self.elements = self.elements[:center]
-    #     self.descendants = self.descendants[:center + 1]
-    #     return sibl, medn
-
+            self.keys=[]
+        if descendants:
+            self.descendants = descendants
+        else:
+            self.descendants=[]
 
 #############################################################################################
     def split(self):
-        # sib,med = self.split_node()
-        # return self.split_node()
-        center = int(len(self.elements)/2)#// 2
-        medn = self.elements[center]
-        sibl = type(self)(self.bptree,self.elements[center + 1:],self.descendants[center + 1:])
-        self.elements = self.elements[:center]
-        self.descendants = self.descendants[:center + 1]
+        center = int(len(self.keys)/2)
+        medn = self.keys[center]
+        sibl = type(self)(self.bptree,self.keys[center + 1:len(self.keys)],self.descendants[center + 1:len(self.descendants)])
+        self.keys = self.keys[0:center]
+        self.descendants = self.descendants[0:center + 1]
         return sibl, medn
 
 #######################################################################################################
 
-    def contract(self, ancestors):
+######################################################################################################
+
+    def lateral(self, parent, parent_index, dest, dest_index):
+        if dest_index >=parent_index  :
+            dest.keys.insert(0, parent.keys[parent_index])
+            parent.keys[parent_index] = self.keys[-1]
+            del self.keys[-1]
+            if self.descendants:
+                dest.descendants.insert(0, self.descendants[-1])
+                del self.descendants[-1]
+        else:
+            dest.keys.append(parent.keys[dest_index])
+            parent.keys[dest_index] = self.keys[0]
+            del self.keys[0]
+            if self.descendants:
+                dest.descendants.append(self.descendants[0])
+                del self.descendants[0]
+            
+
+
+############################################################################################
+
+    def slim(self, ancestors):
         parent = None
         totalAncestors=len(ancestors)
-        left_sib=None
-        right_sib=None
+        sibling_left=None
+        sibling_right=None
 
         # check if there is a space in destination node
-        if ancestors:
+        if totalAncestors:
             parent=ancestors[-1][0]
             parent_index = ancestors[-1][1]
             del ancestors[-1]
-            if parent_index:
-                left_sib = parent.descendants[parent_index - 1]
+            if parent_index!=0:
+                sibling_left = parent.descendants[parent_index-1]
             if parent_index < len(parent.descendants)-1:
-                right_sib = parent.descendants[parent_index + 1]
+                sibling_right = parent.descendants[parent_index + 1]
 
             #if left child have space put key in it
-            if left_sib and len(left_sib.elements) < self.bptree.degree:
-                self.lateral(parent, parent_index, left_sib, parent_index - 1)
+            if sibling_left and len(sibling_left.keys) < self.bptree.degree:
+                self.lateral(parent, parent_index, sibling_left, parent_index - 1)
                 return
 
             #if right child have space put key in it
-            if right_sib and len(right_sib.elements) < self.bptree.degree:
-                self.lateral(parent, parent_index, right_sib, parent_index + 1)
+            if sibling_right and len(sibling_right.keys) < self.bptree.degree:
+                self.lateral(parent, parent_index, sibling_right, parent_index + 1)
                 return
 
         # split the parent node since no vacancy in child
-        center = int(len(self.elements)/2) #// 2
+
         sibl, push = self.split()
-
-        if not parent:
-            parent, parent_index = self.bptree.BRANCH(self.bptree, descendants=[self]), 0
+        if parent:
+            parent.keys.insert(parent_index, push)
+            parent.descendants.insert(parent_index + 1, sibl)
+            if len(parent.keys) < parent.bptree.degree:
+                return
+            parent.slim(ancestors)
+        else:
+            #create new parent and new index
+            parent=_BNode(self.bptree, descendants=[self])
+            # parent_index=0
             self.bptree._root = parent
-
-        parent.elements.insert(parent_index, push)
-        parent.descendants.insert(parent_index + 1, sibl)
-        if len(parent.elements) > parent.bptree.degree:
-            parent.contract(ancestors)
+            parent.keys.insert(0, push)
+            parent.descendants.insert(1, sibl)
+            if len(parent.keys) < parent.bptree.degree:
+                return
+            parent.slim(ancestors)
 
 ############################################################################################################################
 
@@ -98,53 +99,64 @@ class _BNode(object):
 
 class _BPlusLeaf(_BNode):
 
-    def __init__(self, bptree, elements=None, data=None, next=None):
+    def __init__(self, bptree, keys=None, data=None, next=None):
         self.bptree = bptree
-        self.elements = elements or []
-        self.data = data or []
+        if keys:
+            self.keys=keys
+        else:
+            self.keys=[]
+        if data:
+            self.data = data
+        else:
+            self.data=[]
         self.next = next
 
 
 #######################################################################################################
 
     def insert(self, index, key, data, ancestors):
-        self.elements.insert(index, key)
         self.data.insert(index, data)
-        if  len(self.elements) > self.bptree.degree:
-            self.contract(ancestors)
+        self.keys.insert(index, key)
+        totalKeys=len(self.keys)
+        if totalKeys <= self.bptree.degree:
+            return
+        self.slim(ancestors)
 
 #######################################################################################################
 
     def lateral(self, parent, parent_index, dest, dest_index):
-        if parent_index <= dest_index:
-            dest.elements.insert(0, self.elements[-1])
-            del self.elements[-1]
+        if parent_index < dest_index :
+            dest.keys.insert(0, self.keys[-1])
+            del self.keys[-1]
             dest.data.insert(0, self.data[-1])
             del self.data[-1]
-            parent.elements[parent_index] = dest.elements[0]
+            parent.keys[parent_index] = dest.keys[0]
+
         else:
-            dest.elements.append(self.elements[0])
-            del self.elements[0]
+            dest.keys.append(self.keys[0])
+            del self.keys[0]
             dest.data.append(self.data[0])
             del self.data[0]
-            parent.elements[dest_index] = self.elements[0]
+            parent.keys[dest_index] = self.keys[0]
+            
             
 
 #######################################################################################################
 
     def split(self):
-        center = int(len(self.elements)/2)# // 2
-        medn = self.elements[center - 1]
-        sibl = type(self)(self.bptree,self.elements[center:],self.data[center:],self.next)
-        self.elements = self.elements[:center]
-        self.data = self.data[:center]
+        center = int(len(self.keys)/2)# // 2
+        medn = self.keys[center - 1]
+        sibl = type(self)(self.bptree,self.keys[center:len(self.keys)],self.data[center:len(self.data)],self.next)
+        self.keys = self.keys[0:center]
+        self.data = self.data[0:center]
         self.next = sibl
-        return sibl, sibl.elements[0]
+        return sibl, sibl.keys[0]
 
 ########################################### class BTree ############################################################
 
 class BTree(object):
-    BRANCH = LEAF = _BNode
+    BRANCH = _BNode
+    LEAF = _BNode
 
     def __init__(self, degree):
         self.degree = degree
@@ -153,45 +165,26 @@ class BTree(object):
 #######################################################################################################
 
     def getPath(self, item,current,ancestors):
-        # current = self._root
-        # ancestors = []
-        # while getattr(current, "descendants", None):
-        #     index = bisect.bisect_left(current.elements, item)
-        #     ancestors.append((current, index))
-        #     if index < len(current.elements) and current.elements[index] == item:
-        #         return ancestors
-        #     current = current.descendants[index]
-
-        # index = bisect.bisect_left(current.elements, item)
-        # ancestors.append((current, index))
-        # present = index < len(current.elements)
-        # present = present and current.elements[index] == item
-
-        # return ancestors
-        # ancestors = []
+        
         if getattr(current, "descendants", None):
-            # index = bisect.bisect_left(current.elements, item)
-            #find position of item in current elements
-            keys=sorted(current.elements)
+            #find position of item in current keys
+            keys=sorted(current.keys)
             index = 0
             for x in keys:
                 if x < item:
                     index += 1
             ancestors.append((current, index))
-            if index < len(current.elements) and current.elements[index] == item:
+            if index < len(current.keys) and current.keys[index] == item:
                 return ancestors
             # current = current.descendants[index]
             return super(BPlusTree, self).getPath(item,current.descendants[index],ancestors)
         else:
-            # index = bisect.bisect_left(current.elements, item)
-            keys=sorted(current.elements)
+            keys=sorted(current.keys)
             index = 0
             for x in keys:
                 if x < item:
                     index += 1
             ancestors.append((current, index))
-            # present = index < len(current.elements)
-            # present = present and current.elements[index] == item
             return ancestors
 
 
@@ -204,21 +197,12 @@ class BPlusTree(BTree):
         ancestors=self.getPath(key)
         node = ancestors[len(ancestors)-1][0]
         index = ancestors[len(ancestors)-1][1]
-        if index == len(node.elements):
+        if index == len(node.keys):
             if node.next:
                 return node.next.data[0]
-                # node, index = node.next, 0
             else:
                 return False
-        return node.elements[index]
-        # while node.elements[index] == key:
-        #     yield node.data[index]
-        #     index += 1
-        #     if index == len(node.elements):
-        #         if node.next:
-        #             node, index = node.next, 0
-        #         else:
-        #             return
+        return node.keys[index]
 
 #######################################################################################################
 
@@ -228,10 +212,8 @@ class BPlusTree(BTree):
         index = path[len(path)-1][1]
         try:
             while True:
-                # if hasattr(node, "descendants"):
                 node = node.descendants[index]
-                # index = bisect.bisect_left(node.elements, item)
-                keys=sorted(node.elements)
+                keys=sorted(node.keys)
                 index = 0
                 for x in keys:
                     if x < item:
@@ -260,9 +242,8 @@ class BPlusTree(BTree):
 
 #######################################################################################################
 
-# Count number of elements in between pair of keys
+# Count number of keys in between pair of keys
     def range_query(self, upper_bound, lower_bound):
-        # keys=bpt.get_keys()
         allKeys = []
         node = self._root
         # traverse to left most node
@@ -271,19 +252,17 @@ class BPlusTree(BTree):
                 node = node.descendants[0]
         except AttributeError:
             pass
-        # get all elements through the linked list elements=keys=values
+        # get all keys through the linked list keys=keys=values
         while node:
-            allKeys+=node.elements
+            allKeys+=node.keys
             node = node.next
         keys=allKeys
         keys=sorted(keys)
-        # keys=sorted(bpt.get_keys())
         count = 0
         for x in keys:
             if lower_bound <= x <= upper_bound:
                 count += 1
         print(count)
-        # print(bisect.bisect_right(keys,int(upper_bound))-bisect.bisect_left(keys,int(lower_bound)))
 
 ##############################################################################################################
 
@@ -297,49 +276,26 @@ class BPlusTree(BTree):
                 node = node.descendants[0]
         except AttributeError:
             pass
-        # get all elements through the linked list elements=keys=values
+        # get all keys through the linked list keys=keys=values
         while node:
-            allKeys+=node.elements
+            allKeys+=node.keys
             node = node.next
         keys=allKeys
-        # keys=bpt.get_keys()
         count = 0
         for x in keys:
             if key==x:
                 count += 1
         print(count)
-        # print(bisect.bisect_right(keys,int(key))- bisect.bisect_left(keys,int(key)))
 
 ################################################################################################################
 
 # Check if given key exists in tree
     def find_query(self,key):
-        # s= next(self._find_key(key),None)
-        # if s==None:
-        #     print('NO')
-        # else:
-        #     print('YES')
-        # if next(self._find_key(key),None):
         if self._find_key(key):
             print('YES')
         else:
             print('NO')
 
-
-#######################################################################################################
-
-    # def get_keys(self):
-    #     node = self._root
-    #     while hasattr(node, "descendants"):
-    #         node = node.descendants[0]
-
-    #     temp = []
-
-    #     while node:
-    #         for pair in zip(node.elements, node.data):
-    #             temp.append(pair)
-    #         node = node.next
-    #     return list(map(operator.itemgetter(0), temp))
 
 #################################################################################################
 def insert(tokens):

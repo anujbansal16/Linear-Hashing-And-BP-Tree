@@ -10,7 +10,7 @@ int occupancyThresold=75;
 // Avg occupancy = r/(n × γ)
 
 
-class bucket {
+class Bucket {
     public:
     Bucket *oFlow=NULL;
     vector<int> keys;
