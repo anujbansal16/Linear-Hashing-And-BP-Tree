@@ -13,7 +13,6 @@ class _BNode(object):
         else:
             self.descendants=[]
 
-#############################################################################################
     def split(self):
         center = int(len(self.keys)/2)
         medn = self.keys[center]
@@ -22,9 +21,6 @@ class _BNode(object):
         self.descendants = self.descendants[0:center + 1]
         return sibl, medn
 
-#######################################################################################################
-
-######################################################################################################
 
     def lateral(self, parent, parent_index, dest, dest_index):
         if dest_index >=parent_index  :
@@ -42,9 +38,6 @@ class _BNode(object):
                 dest.descendants.append(self.descendants[0])
                 del self.descendants[0]
             
-
-
-############################################################################################
 
     def slim(self, ancestors):
         parent = None
@@ -92,8 +85,6 @@ class _BNode(object):
                 return
             parent.slim(ancestors)
 
-############################################################################################################################
-
 
 ############################################### class BPlus leaf ########################################################
 
@@ -112,8 +103,6 @@ class _BPlusLeaf(_BNode):
         self.next = next
 
 
-#######################################################################################################
-
     def insert(self, index, key, data, ancestors):
         self.data.insert(index, data)
         self.keys.insert(index, key)
@@ -122,7 +111,6 @@ class _BPlusLeaf(_BNode):
             return
         self.slim(ancestors)
 
-#######################################################################################################
 
     def lateral(self, parent, parent_index, dest, dest_index):
         if parent_index < dest_index :
@@ -139,9 +127,6 @@ class _BPlusLeaf(_BNode):
             del self.data[0]
             parent.keys[dest_index] = self.keys[0]
             
-            
-
-#######################################################################################################
 
     def split(self):
         center = int(len(self.keys)/2)# // 2
@@ -162,7 +147,6 @@ class BTree(object):
         self.degree = degree
         self._bottom = self.LEAF(self)
         self._root = self.LEAF(self)
-#######################################################################################################
 
     def getPath(self, item,current,ancestors):
         
@@ -199,12 +183,15 @@ class BPlusTree(BTree):
         index = ancestors[len(ancestors)-1][1]
         if index == len(node.keys):
             if node.next:
-                return node.next.data[0]
+                # return node.next.data[0]
+                node=node.next
+                index=0
             else:
-                return False
-        return node.keys[index]
+                return None
+        if node.keys[index] == key:
+            return node.keys[index]
+        return None
 
-#######################################################################################################
 
     def getPath(self, item):
         path = super(BPlusTree, self).getPath(item,self._root,[])
@@ -226,9 +213,6 @@ class BPlusTree(BTree):
         return path
 
 
-#######################################################################################################
-
-
     def insert(self, key, data):
         path = self.getPath(key)
         totalAncestors=len(path)
@@ -240,9 +224,8 @@ class BPlusTree(BTree):
         del path[totalAncestors-1]
         node.insert(index, key, data, path)
 
-#######################################################################################################
 
-# Count number of keys in between pair of keys
+    # Count number of keys in between pair of keys
     def range_query(self, upper_bound, lower_bound):
         allKeys = []
         node = self._root
@@ -264,9 +247,8 @@ class BPlusTree(BTree):
                 count += 1
         print(count)
 
-##############################################################################################################
 
-# Count number of occurences of key in tree
+    # Count number of occurences of key in tree
     def count_query(self,key):
         allKeys = []
         node = self._root
@@ -287,9 +269,8 @@ class BPlusTree(BTree):
                 count += 1
         print(count)
 
-################################################################################################################
 
-# Check if given key exists in tree
+    # Check if given key exists in tree
     def find_query(self,key):
         if self._find_key(key):
             print('YES')
@@ -298,6 +279,7 @@ class BPlusTree(BTree):
 
 
 #################################################################################################
+
 def insert(tokens):
     key=int(tokens[1])
     value=int(tokens[1])
